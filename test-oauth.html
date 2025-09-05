@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Flow Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <h1>OAuth Flow Test</h1>
+    
+    <div class="test-section">
+        <h3>Current URL Parameters</h3>
+        <div id="urlParams" class="result info"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>LocalStorage Status</h3>
+        <button onclick="checkLocalStorage()">Check LocalStorage</button>
+        <button onclick="clearAllData()">Clear All Data</button>
+        <div id="localStorageResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>OAuth Flow Test</h3>
+        <button onclick="testOAuthFlow()">Test OAuth Flow</button>
+        <button onclick="simulateOAuthCallback()">Simulate OAuth Callback</button>
+        <div id="oauthResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>App State Test</h3>
+        <button onclick="testAppState()">Test App State</button>
+        <div id="appStateResult" class="result"></div>
+    </div>
+
+    <script>
+        // Display current URL parameters
+        function displayUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const params = {};
+            for (const [key, value] of urlParams) {
+                params[key] = value;
+            }
+            document.getElementById('urlParams').textContent = 
+                Object.keys(params).length > 0 ? 
+                JSON.stringify(params, null, 2) : 
+                'No URL parameters found';
+        }
+
+        function checkLocalStorage() {
+            const resultDiv = document.getElementById('localStorageResult');
+            const data = {
+                'dimo_client_id': localStorage.getItem('dimo_client_id'),
+                'dimo_api_key': localStorage.getItem('dimo_api_key'),
+                'dimo_jwt': localStorage.getItem('dimo_jwt'),
+                'dimo_jwt_timestamp': localStorage.getItem('dimo_jwt_timestamp'),
+                'user_jwt': localStorage.getItem('user_jwt'),
+                'user_jwt_timestamp': localStorage.getItem('user_jwt_timestamp'),
+                'oauth_state': localStorage.getItem('oauth_state')
+            };
+            
+            resultDiv.textContent = JSON.stringify(data, null, 2);
+            resultDiv.className = 'result';
+        }
+
+        function clearAllData() {
+            localStorage.clear();
+            const resultDiv = document.getElementById('localStorageResult');
+            resultDiv.textContent = 'All localStorage data cleared';
+            resultDiv.className = 'result success';
+        }
+
+        function testOAuthFlow() {
+            const resultDiv = document.getElementById('oauthResult');
+            resultDiv.textContent = 'Testing OAuth flow...';
+            resultDiv.className = 'result';
+
+            // Check if app is configured
+            const clientId = localStorage.getItem('dimo_client_id');
+            if (!clientId) {
+                resultDiv.textContent = '❌ App not configured. Please configure first.';
+                resultDiv.className = 'result error';
+                return;
+            }
+
+            // Generate state and build OAuth URL
+            const state = Math.random().toString(36).substring(2, 15);
+            localStorage.setItem('oauth_state', state);
+            
+            const loginBaseUrl = 'https://login.dimo.org';
+            const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
+            const oauthUrl = `${loginBaseUrl}/oauth/authorize?` +
+                `client_id=${encodeURIComponent(clientId)}&` +
+                `redirect_uri=${redirectUri}&` +
+                `response_type=code&` +
+                `scope=openid profile email&` +
+                `state=${encodeURIComponent(state)}`;
+
+            resultDiv.innerHTML = `
+                ✅ OAuth URL generated successfully!<br><br>
+                <strong>OAuth URL:</strong><br>
+                <a href="${oauthUrl}" target="_blank">${oauthUrl}</a><br><br>
+                <strong>State:</strong> ${state}<br>
+                <strong>Client ID:</strong> ${clientId.slice(0, 10)}...
+            `;
+            resultDiv.className = 'result success';
+        }
+
+        function simulateOAuthCallback() {
+            const resultDiv = document.getElementById('oauthResult');
+            resultDiv.textContent = 'Simulating OAuth callback...';
+            resultDiv.className = 'result';
+
+            // Simulate OAuth callback with mock data
+            const mockCode = 'mock_auth_code_' + Math.random().toString(36).substring(2, 15);
+            const mockState = localStorage.getItem('oauth_state') || 'mock_state';
+
+            // Store mock user JWT
+            const mockJwt = 'mock_user_jwt_' + Math.random().toString(36).substring(2, 15);
+            const now = Date.now();
+            localStorage.setItem('user_jwt', mockJwt);
+            localStorage.setItem('user_jwt_timestamp', now.toString());
+            localStorage.removeItem('oauth_state');
+
+            resultDiv.innerHTML = `
+                ✅ OAuth callback simulated successfully!<br><br>
+                <strong>Mock Code:</strong> ${mockCode}<br>
+                <strong>Mock State:</strong> ${mockState}<br>
+                <strong>Mock JWT:</strong> ${mockJwt}<br>
+                <strong>Timestamp:</strong> ${new Date(now).toISOString()}
+            `;
+            resultDiv.className = 'result success';
+        }
+
+        function testAppState() {
+            const resultDiv = document.getElementById('appStateResult');
+            resultDiv.textContent = 'Testing app state...';
+            resultDiv.className = 'result';
+
+            // Check configuration
+            const clientId = localStorage.getItem('dimo_client_id');
+            const apiKey = localStorage.getItem('dimo_api_key');
+            const isConfigured = !!(clientId && apiKey);
+
+            // Check user authentication
+            const userJwt = localStorage.getItem('user_jwt');
+            const userJwtTimestamp = localStorage.getItem('user_jwt_timestamp');
+            let isAuthenticated = false;
+            let jwtAge = 0;
+
+            if (userJwt && userJwtTimestamp) {
+                const now = Date.now();
+                jwtAge = now - parseInt(userJwtTimestamp);
+                isAuthenticated = jwtAge < 3000000; // 50 minutes
+            }
+
+            const state = {
+                isConfigured,
+                isAuthenticated,
+                jwtAge: jwtAge > 0 ? Math.round(jwtAge / 1000 / 60) + ' minutes' : 'N/A',
+                currentPage: !isConfigured ? 'config' : (!isAuthenticated ? 'login' : 'vehicles'),
+                clientId: clientId ? clientId.slice(0, 10) + '...' : 'Not set',
+                userJwt: userJwt ? userJwt.slice(0, 20) + '...' : 'Not set'
+            };
+
+            resultDiv.textContent = JSON.stringify(state, null, 2);
+            resultDiv.className = 'result';
+        }
+
+        // Initialize
+        displayUrlParams();
+        checkLocalStorage();
+    </script>
+</body>
+</html>

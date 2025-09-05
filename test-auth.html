@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test DIMO Authentication</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <h1>DIMO App Configuration Test</h1>
+    
+    <div class="test-section">
+        <h3>Test Credentials</h3>
+        <p>Use these test credentials to verify the authentication flow:</p>
+        <ul>
+            <li><strong>Client ID:</strong> 0x8CFd006E6B73dbF00e700C85c32CE5C9aBD591a0</li>
+            <li><strong>API Key:</strong> 8c6d8ca305b782540331158a5ed570a4de1e1b1cd5caad64f131b394eec51717</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>App Configuration Test</h3>
+        <button onclick="testAuthentication()">Test Configuration</button>
+        <button onclick="checkAuthStatus()">Check Auth Status</button>
+        <button onclick="clearCredentials()">Clear Credentials</button>
+        <div id="authResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>JWT Refresh Test</h3>
+        <button onclick="testJWTRefresh()">Test JWT Refresh</button>
+        <div id="refreshResult" class="result"></div>
+    </div>
+
+    <script type="module">
+        import { jwtManager } from './src/jwt-manager.js';
+
+        window.testAuthentication = async function() {
+            const resultDiv = document.getElementById('authResult');
+            resultDiv.textContent = 'Testing configuration...';
+            resultDiv.className = 'result';
+
+            try {
+                // Set test credentials
+                const clientId = '0x8CFd006E6B73dbF00e700C85c32CE5C9aBD591a0';
+                const apiKey = '8c6d8ca305b782540331158a5ed570a4de1e1b1cd5caad64f131b394eec51717';
+
+                // Store credentials
+                localStorage.setItem('dimo_client_id', clientId);
+                localStorage.setItem('dimo_api_key', apiKey);
+
+                // Get JWT
+                const jwt = await jwtManager.getValidJWT();
+                
+                resultDiv.textContent = `✅ Configuration successful!\n\nJWT: ${jwt.substring(0, 50)}...\n\nFull JWT stored in localStorage.`;
+                resultDiv.className = 'result success';
+            } catch (error) {
+                resultDiv.textContent = `❌ Configuration failed:\n${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        };
+
+        window.checkAuthStatus = function() {
+            const resultDiv = document.getElementById('authResult');
+            const status = jwtManager.getAuthStatus();
+            
+            resultDiv.textContent = `Auth Status:\n${JSON.stringify(status, null, 2)}`;
+            resultDiv.className = 'result';
+        };
+
+        window.clearCredentials = function() {
+            jwtManager.clearCredentials();
+            const resultDiv = document.getElementById('authResult');
+            resultDiv.textContent = '✅ Credentials cleared from localStorage';
+            resultDiv.className = 'result success';
+        };
+
+        window.testJWTRefresh = async function() {
+            const resultDiv = document.getElementById('refreshResult');
+            resultDiv.textContent = 'Testing JWT refresh...';
+            resultDiv.className = 'result';
+
+            try {
+                const jwt = await jwtManager.getValidJWT();
+                resultDiv.textContent = `✅ JWT refresh successful!\n\nNew JWT: ${jwt.substring(0, 50)}...`;
+                resultDiv.className = 'result success';
+            } catch (error) {
+                resultDiv.textContent = `❌ JWT refresh failed:\n${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        };
+    </script>
+</body>
+</html>

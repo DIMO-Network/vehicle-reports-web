@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storage Service Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .output {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Storage Service Test</h1>
+    
+    <div class="test-section">
+        <h3>App Configuration Test</h3>
+        <input type="text" id="clientId" placeholder="DIMO Client ID" value="0x8CFd006E6B73dbF00e700C85c32CE5C9aBD591a0">
+        <input type="text" id="apiKey" placeholder="DIMO API Key" value="8c6d8ca305b782540331158a5ed570a4de1e1b1cd5caad64f131b394eec51717">
+        <button onclick="setAppConfig()">Set App Config</button>
+        <button onclick="getAppConfig()">Get App Config</button>
+        <div id="appConfigOutput" class="output"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>User Session Test</h3>
+        <input type="text" id="userJwt" placeholder="User JWT" value="test.jwt.token">
+        <button onclick="setUserSession()">Set User Session</button>
+        <button onclick="getUserSession()">Get User Session</button>
+        <div id="userSessionOutput" class="output"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>App State Test</h3>
+        <button onclick="getAppState()">Get App State</button>
+        <button onclick="clearAll()">Clear All</button>
+        <button onclick="clearUserSession()">Clear User Session</button>
+        <div id="appStateOutput" class="output"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>LocalStorage Inspection</h3>
+        <button onclick="inspectLocalStorage()">Inspect LocalStorage</button>
+        <div id="localStorageOutput" class="output"></div>
+    </div>
+
+    <script type="module">
+        import { storageService } from './src/storage-service.js';
+
+        // Make functions global for onclick handlers
+        window.setAppConfig = function() {
+            const clientId = document.getElementById('clientId').value;
+            const apiKey = document.getElementById('apiKey').value;
+            
+            storageService.setAppConfig(clientId, apiKey);
+            document.getElementById('appConfigOutput').textContent = 
+                `App config set:\nClient ID: ${clientId}\nAPI Key: ${apiKey}`;
+        };
+
+        window.getAppConfig = function() {
+            const clientId = storageService.getClientId();
+            const apiKey = storageService.getApiKey();
+            const isConfigured = storageService.isAppConfigured();
+            
+            document.getElementById('appConfigOutput').textContent = 
+                `App config:\nClient ID: ${clientId}\nAPI Key: ${apiKey}\nIs Configured: ${isConfigured}`;
+        };
+
+        window.setUserSession = function() {
+            const jwt = document.getElementById('userJwt').value;
+            storageService.setUserSession(jwt);
+            document.getElementById('userSessionOutput').textContent = 
+                `User session set:\nJWT: ${jwt}`;
+        };
+
+        window.getUserSession = function() {
+            const jwt = storageService.getUserJwt();
+            const isAuthenticated = storageService.isUserAuthenticated();
+            
+            document.getElementById('userSessionOutput').textContent = 
+                `User session:\nJWT: ${jwt}\nIs Authenticated: ${isAuthenticated}`;
+        };
+
+        window.getAppState = function() {
+            const state = storageService.getAppState();
+            document.getElementById('appStateOutput').textContent = 
+                `App State:\n${JSON.stringify(state, null, 2)}`;
+        };
+
+        window.clearAll = function() {
+            storageService.clearAll();
+            document.getElementById('appStateOutput').textContent = 'All storage cleared';
+        };
+
+        window.clearUserSession = function() {
+            storageService.clearUserSession();
+            document.getElementById('appStateOutput').textContent = 'User session cleared';
+        };
+
+        window.inspectLocalStorage = function() {
+            const keys = Object.values(storageService.constructor.KEYS);
+            const data = {};
+            
+            keys.forEach(key => {
+                data[key] = localStorage.getItem(key);
+            });
+            
+            document.getElementById('localStorageOutput').textContent = 
+                `LocalStorage Contents:\n${JSON.stringify(data, null, 2)}`;
+        };
+
+        // Load initial state
+        window.getAppConfig();
+        window.getUserSession();
+        window.getAppState();
+        window.inspectLocalStorage();
+    </script>
+</body>
+</html>

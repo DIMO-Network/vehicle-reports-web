@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GraphQL Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <h1>GraphQL Service Test</h1>
+    
+    <div class="test-section">
+        <h3>JWT Token Status</h3>
+        <button onclick="checkJWT()">Check JWT</button>
+        <div id="jwtResult" class="result info"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>GraphQL Query Test</h3>
+        <button onclick="testGraphQL()">Test GraphQL Query</button>
+        <div id="graphqlResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>JWT Claims Test</h3>
+        <button onclick="testJWTClaims()">Parse JWT Claims</button>
+        <div id="claimsResult" class="result"></div>
+    </div>
+
+    <script type="module">
+        import { graphqlService } from './src/graphql-service.js';
+
+        window.checkJWT = function() {
+            const resultDiv = document.getElementById('jwtResult');
+            const userJwt = localStorage.getItem('user_jwt');
+            
+            if (!userJwt) {
+                resultDiv.textContent = 'No user JWT found in localStorage';
+                resultDiv.className = 'result error';
+                return;
+            }
+
+            resultDiv.textContent = `JWT found: ${userJwt.substring(0, 50)}...`;
+            resultDiv.className = 'result success';
+        };
+
+        window.testJWTClaims = function() {
+            const resultDiv = document.getElementById('claimsResult');
+            resultDiv.textContent = 'Parsing JWT claims...';
+            resultDiv.className = 'result';
+
+            try {
+                const userJwt = localStorage.getItem('user_jwt');
+                if (!userJwt) {
+                    throw new Error('No user JWT found');
+                }
+
+                const claims = graphqlService.parseJWT(userJwt);
+                resultDiv.textContent = `JWT Claims:\n${JSON.stringify(claims, null, 2)}`;
+                resultDiv.className = 'result success';
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        };
+
+        window.testGraphQL = async function() {
+            const resultDiv = document.getElementById('graphqlResult');
+            resultDiv.textContent = 'Testing GraphQL query...';
+            resultDiv.className = 'result';
+
+            try {
+                const userJwt = localStorage.getItem('user_jwt');
+                if (!userJwt) {
+                    throw new Error('No user JWT found. Please login first.');
+                }
+
+                const vehiclesData = await graphqlService.getVehicles(userJwt);
+                
+                resultDiv.textContent = `GraphQL Response:\n${JSON.stringify(vehiclesData, null, 2)}`;
+                resultDiv.className = 'result success';
+            } catch (error) {
+                resultDiv.textContent = `GraphQL Error: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        };
+
+        // Initialize
+        checkJWT();
+    </script>
+</body>
+</html>
