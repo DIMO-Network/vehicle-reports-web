@@ -6,6 +6,10 @@ export default defineConfig({
     port: 5173,
     https: true,
     host: true, // Allow external connections
+    fs: {
+      strict: true,
+      deny: ["**/.*"],
+    },
   },
   resolve: {
     alias: {

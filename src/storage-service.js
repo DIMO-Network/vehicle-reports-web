@@ -60,6 +60,27 @@ export class StorageService {
   }
 
   /**
+   * Clear app configuration data (keep user session)
+   */
+  clearAppConfig() {
+    this.removeItem(StorageService.KEYS.DIMO_CLIENT_ID)
+    this.removeItem(StorageService.KEYS.DIMO_API_KEY)
+    this.removeItem(StorageService.KEYS.DIMO_JWT)
+    this.removeItem(StorageService.KEYS.DIMO_JWT_TIMESTAMP)
+  }
+
+  /**
+   * Get app configuration
+   */
+  getAppConfig() {
+    return {
+      clientId: this.getClientId(),
+      apiKey: this.getApiKey(),
+      redirectUri: this.getItem('dimo_redirect_uri') || 'https://localhost:5173/login'
+    }
+  }
+
+  /**
    * Check if app is configured
    */
   isAppConfigured() {

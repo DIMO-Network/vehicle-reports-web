@@ -10,7 +10,8 @@ export class AppConfigurationComponent extends LitElement {
       clientId: { type: String },
       apiKey: { type: String },
       isLoading: { type: Boolean },
-      error: { type: String }
+      error: { type: String },
+      success: { type: String }
     }
   }
 
@@ -20,6 +21,7 @@ export class AppConfigurationComponent extends LitElement {
     this.apiKey = ''
     this.isLoading = false
     this.error = ''
+    this.success = ''
   }
 
   render() {
@@ -31,6 +33,7 @@ export class AppConfigurationComponent extends LitElement {
           <p class="config-text">Enter your DIMO credentials to configure the Odometer Reporting Tool</p>
           
           ${this.error ? html`<div class="error">${this.error}</div>` : ''}
+          ${this.success ? html`<div class="success">${this.success}</div>` : ''}
           
           <form @submit=${this._handleSubmit}>
             <div class="form-group">
@@ -100,6 +103,15 @@ export class AppConfigurationComponent extends LitElement {
       }))
 
       console.log('Config success event dispatched')
+      
+      // Show success message
+      this.success = 'Configuration saved successfully! Redirecting to login...'
+      this.error = '' // Clear any previous errors
+      
+      // Redirect to login page after successful configuration
+      setTimeout(() => {
+        window.location.href = '/login'
+      }, 2000) // Give user time to see the success message
 
     } catch (error) {
       console.error('Configuration failed:', error)
@@ -215,6 +227,15 @@ export class AppConfigurationComponent extends LitElement {
         border: 1px solid #f5c6cb;
       }
 
+      .success {
+        background-color: #d4edda;
+        color: #155724;
+        padding: 0.75rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        border: 1px solid #c3e6cb;
+      }
+
       .help-text {
         margin-top: 1.5rem;
         text-align: center;
@@ -275,6 +296,12 @@ export class AppConfigurationComponent extends LitElement {
           background-color: #721c24;
           color: #f8d7da;
           border-color: #f5c6cb;
+        }
+
+        .success {
+          background-color: #155724;
+          color: #d4edda;
+          border-color: #c3e6cb;
         }
 
         .help-text p {

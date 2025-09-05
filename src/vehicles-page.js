@@ -1,6 +1,7 @@
 import { LitElement, css, html } from 'lit'
 import { graphqlService } from './graphql-service.js'
 import { storageService } from './storage-service.js'
+import { dimoApiService } from './dimo-api-service.js'
 
 /**
  * Vehicles page component displaying user's vehicles
@@ -14,7 +15,14 @@ export class VehiclesPage extends LitElement {
       error: { type: String },
       hasNextPage: { type: Boolean },
       endCursor: { type: String },
-      loadingMore: { type: Boolean }
+      loadingMore: { type: Boolean },
+      selectedVehicles: { type: Set },
+      startDate: { type: String },
+      endDate: { type: String },
+      selectedMonth: { type: String },
+      developerJwt: { type: String },
+      vehicleJwts: { type: Object },
+      isGeneratingReport: { type: Boolean }
     }
   }
 
@@ -27,6 +35,15 @@ export class VehiclesPage extends LitElement {
     this.hasNextPage = false
     this.endCursor = null
     this.loadingMore = false
+    this.selectedVehicles = new Set()
+    this.startDate = ''
+    this.endDate = ''
+    this.selectedMonth = ''
+    this.developerJwt = null
+    this.vehicleJwts = {}
+    this.isGeneratingReport = false
+    
+    // DIMO API service is imported and ready to use
   }
 
   connectedCallback() {
@@ -77,6 +94,235 @@ export class VehiclesPage extends LitElement {
     }
   }
 
+  getLastFiveMonths() {
+    const months = []
+    const today = new Date()
+    
+    for (let i = 0; i < 5; i++) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1)
+      const monthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      const startDate = new Date(date.getFullYear(), date.getMonth(), 1)
+      const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+      
+      months.push({
+        value: `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`,
+        label: monthName,
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0]
+      })
+    }
+    
+    return months
+  }
+
+  onMonthChange(event) {
+    const selectedValue = event.target.value
+    if (selectedValue) {
+      const month = this.getLastFiveMonths().find(m => m.value === selectedValue)
+      if (month) {
+        this.startDate = month.startDate
+        this.endDate = month.endDate
+        this.selectedMonth = selectedValue
+      }
+    } else {
+      this.selectedMonth = ''
+    }
+    this.requestUpdate()
+  }
+
+  onDateChange(event) {
+    const { name, value } = event.target
+    if (name === 'startDate') {
+      this.startDate = value
+    } else if (name === 'endDate') {
+      this.endDate = value
+    }
+    // Clear month selection when manually changing dates
+    this.selectedMonth = ''
+    this.requestUpdate()
+  }
+
+  onVehicleSelect(event) {
+    const tokenId = event.target.value
+    const isChecked = event.target.checked
+    
+    if (isChecked) {
+      this.selectedVehicles.add(tokenId)
+    } else {
+      this.selectedVehicles.delete(tokenId)
+    }
+    
+    // Create a new Set to trigger reactivity
+    this.selectedVehicles = new Set(this.selectedVehicles)
+    this.requestUpdate()
+  }
+
+  onSelectAll(event) {
+    const isChecked = event.target.checked
+    
+    if (isChecked) {
+      this.selectedVehicles = new Set(this.vehicles.map(v => v.tokenId))
+    } else {
+      this.selectedVehicles = new Set()
+    }
+    
+    this.requestUpdate()
+  }
+
+  async getDeveloperJwt() {
+    // Check if we already have a valid developer JWT
+    if (this.developerJwt && this.isJwtValid(this.developerJwt)) {
+      return this.developerJwt
+    }
+
+    try {
+      // Get DIMO credentials from app configuration
+      const config = await this.getDimoConfig()
+      
+      const developerJwt = await dimoApiService.getDeveloperJwt({
+        clientId: config.clientId,
+        domain: config.redirectUri,
+        privateKey: config.apiKey,
+      })
+
+      this.developerJwt = developerJwt.access_token
+      return this.developerJwt
+    } catch (error) {
+      console.error('Failed to get Developer JWT:', error)
+      throw new Error('Failed to authenticate with DIMO. Please check your credentials.')
+    }
+  }
+
+  async getVehicleJwt(tokenId) {
+    // Check if we already have a valid vehicle JWT for this token
+    if (this.vehicleJwts[tokenId] && this.isJwtValid(this.vehicleJwts[tokenId])) {
+      return this.vehicleJwts[tokenId]
+    }
+
+    try {
+      const developerJwt = await this.getDeveloperJwt()
+      
+      const vehicleJwt = await dimoApiService.getVehicleJwt({
+        access_token: developerJwt,
+        tokenId: tokenId
+      })
+
+      this.vehicleJwts[tokenId] = vehicleJwt.token
+      return this.vehicleJwts[tokenId]
+    } catch (error) {
+      console.error(`Failed to get Vehicle JWT for token ${tokenId}:`, error)
+      throw new Error(`Failed to get vehicle access for token ${tokenId}`)
+    }
+  }
+
+  isJwtValid(jwt) {
+    return dimoApiService.isJwtValid(jwt)
+  }
+
+  async getDimoConfig() {
+    // Get DIMO credentials from storage service
+    const config = storageService.getAppConfig()
+    
+    if (!config || !config.clientId || !config.apiKey) {
+      throw new Error('DIMO credentials not configured. Please configure your app first.')
+    }
+    
+    return {
+      clientId: config.clientId,
+      redirectUri: config.redirectUri || 'http://localhost:3000', // Default redirect URI
+      apiKey: config.apiKey
+    }
+  }
+
+  async generateReport() {
+    // Validate required fields
+    if (!this.startDate || !this.endDate) {
+      alert('Please select both start and end dates.')
+      return
+    }
+    
+    if (this.selectedVehicles.size === 0) {
+      alert('Please select at least one vehicle.')
+      return
+    }
+    
+    // Validate date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+    if (!dateRegex.test(this.startDate) || !dateRegex.test(this.endDate)) {
+      alert('Please use YYYY-MM-DD format for dates.')
+      return
+    }
+    
+    // Validate that start date is before end date
+    if (new Date(this.startDate) > new Date(this.endDate)) {
+      alert('Start date must be before end date.')
+      return
+    }
+    
+    this.isGeneratingReport = true
+    this.requestUpdate()
+    
+    try {
+      const selectedVehiclesList = Array.from(this.selectedVehicles).map(tokenId => 
+        this.vehicles.find(v => v.tokenId === tokenId)
+      ).filter(Boolean)
+      
+      console.log('=== Vehicle Report Generation ===')
+      console.log('Start Date:', this.startDate)
+      console.log('End Date:', this.endDate)
+      console.log('Selected Vehicles:', selectedVehiclesList)
+      console.log('Total Selected:', selectedVehiclesList.length)
+      
+      // Get Developer JWT (reuse if valid)
+      console.log('Getting Developer JWT...')
+      const developerJwt = await this.getDeveloperJwt()
+      console.log('Developer JWT obtained successfully')
+      
+      // Get Vehicle JWTs for each selected vehicle
+      const vehicleJwtPromises = selectedVehiclesList.map(async (vehicle) => {
+        try {
+          console.log(`Getting Vehicle JWT for token ${vehicle.tokenId}...`)
+          const vehicleJwt = await this.getVehicleJwt(vehicle.tokenId)
+          console.log(`Vehicle JWT obtained for token ${vehicle.tokenId}`)
+          return {
+            vehicle,
+            jwt: vehicleJwt
+          }
+        } catch (error) {
+          console.error(`Failed to get JWT for vehicle ${vehicle.tokenId}:`, error)
+          return {
+            vehicle,
+            jwt: null,
+            error: error.message
+          }
+        }
+      })
+      
+      const vehicleJwtResults = await Promise.all(vehicleJwtPromises)
+      
+      // Log results
+      console.log('=== JWT Results ===')
+      vehicleJwtResults.forEach(result => {
+        if (result.jwt) {
+          console.log(`✅ Token ${result.vehicle.tokenId}: JWT obtained`)
+        } else {
+          console.log(`❌ Token ${result.vehicle.tokenId}: ${result.error}`)
+        }
+      })
+      console.log('==================')
+      
+      // TODO: Implement actual CSV generation logic here using the JWTs
+      alert(`Report generation initiated for ${selectedVehiclesList.length} vehicles from ${this.startDate} to ${this.endDate}. Check console for JWT details.`)
+      
+    } catch (error) {
+      console.error('Report generation failed:', error)
+      alert(`Report generation failed: ${error.message}`)
+    } finally {
+      this.isGeneratingReport = false
+      this.requestUpdate()
+    }
+  }
+
 
 
   render() {
@@ -102,6 +348,61 @@ export class VehiclesPage extends LitElement {
             </div>
           ` : ''}
 
+          <!-- Report Generation Form -->
+          <div class="report-form-container">
+            <div class="report-form">
+              <h2>Generate Vehicle Report</h2>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="month-selector">Quick Select Month (Optional)</label>
+                  <select 
+                    id="month-selector" 
+                    @change=${this.onMonthChange}
+                    .value=${this.selectedMonth}
+                    class="form-select"
+                  >
+                    <option value="">Select a month...</option>
+                    ${this.getLastFiveMonths().map(month => html`
+                      <option value=${month.value}>${month.label}</option>
+                    `)}
+                  </select>
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="start-date">Start Date *</label>
+                  <input 
+                    type="date" 
+                    id="start-date" 
+                    name="startDate"
+                    .value=${this.startDate}
+                    @change=${this.onDateChange}
+                    class="form-input"
+                    required
+                  >
+                </div>
+                <div class="form-group">
+                  <label for="end-date">End Date *</label>
+                  <input 
+                    type="date" 
+                    id="end-date" 
+                    name="endDate"
+                    .value=${this.endDate}
+                    @change=${this.onDateChange}
+                    class="form-input"
+                    required
+                  >
+                </div>
+                <div class="form-group">
+                  <button @click=${this.generateReport} class="generate-btn" ?disabled=${this.isLoading || this.isGeneratingReport}>
+                    ${this.isGeneratingReport ? 'Generating Report...' : 'Generate Report'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           ${this.isLoading ? html`
             <div class="loading-state">
               <div class="spinner"></div>
@@ -112,6 +413,14 @@ export class VehiclesPage extends LitElement {
               <table class="vehicles-table">
                 <thead>
                   <tr>
+                    <th class="checkbox-column">
+                      <input 
+                        type="checkbox" 
+                        @change=${this.onSelectAll}
+                        .checked=${this.vehicles.length > 0 && this.selectedVehicles.size === this.vehicles.length}
+                        class="select-all-checkbox"
+                      >
+                    </th>
                     <th>Token ID</th>
                     <th>Vehicle Definition</th>
                     <th>IMEI</th>
@@ -121,7 +430,7 @@ export class VehiclesPage extends LitElement {
                 <tbody>
                   ${this.vehicles.length === 0 ? html`
                     <tr>
-                      <td colspan="4" class="no-data">
+                      <td colspan="5" class="no-data">
                         <div class="no-data-content">
                           <svg class="no-data-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM17 12H15V15H13V12H11V10H13V7H15V10H17V12Z" fill="currentColor"/>
@@ -132,6 +441,15 @@ export class VehiclesPage extends LitElement {
                     </tr>
                   ` : this.vehicles.map(vehicle => html`
                     <tr>
+                      <td class="checkbox-column">
+                        <input 
+                          type="checkbox" 
+                          value=${vehicle.tokenId}
+                          @change=${this.onVehicleSelect}
+                          .checked=${this.selectedVehicles.has(vehicle.tokenId)}
+                          class="vehicle-checkbox"
+                        >
+                      </td>
                       <td class="token-id">
                         <code>${vehicle.tokenId}</code>
                       </td>
@@ -221,6 +539,109 @@ export class VehiclesPage extends LitElement {
         padding: 2rem;
         max-width: 1200px;
         margin: 0 auto;
+      }
+
+      .report-form-container {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .report-form {
+        padding: 1.5rem;
+        border-bottom: 1px solid #dee2e6;
+      }
+
+      .report-form h2 {
+        margin: 0 0 1.5rem 0;
+        color: #2c3e50;
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      .form-row {
+        display: flex;
+        gap: 1rem;
+        align-items: end;
+        flex-wrap: wrap;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        min-width: 150px;
+        flex: 1;
+      }
+
+      .form-group:last-child {
+        flex: 0 0 auto;
+      }
+
+      .form-group label {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #495057;
+        margin-bottom: 0.5rem;
+      }
+
+      .form-input,
+      .form-select {
+        padding: 0.5rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      .form-input:focus,
+      .form-select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+      }
+
+      .generate-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: transform 0.2s, box-shadow 0.2s;
+        white-space: nowrap;
+      }
+
+      .generate-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      .generate-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .checkbox-column {
+        width: 50px;
+        text-align: center;
+        padding: 0.5rem !important;
+      }
+
+      .select-all-checkbox,
+      .vehicle-checkbox {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+
+      .select-all-checkbox {
+        transform: scale(1.1);
       }
 
       .error-message {
@@ -384,6 +805,35 @@ export class VehiclesPage extends LitElement {
           background-color: #1a1a1a;
         }
 
+        .report-form-container {
+          background: #2c3e50;
+        }
+
+        .report-form {
+          border-bottom-color: #495057;
+        }
+
+        .report-form h2 {
+          color: #e9ecef;
+        }
+
+        .form-group label {
+          color: #e9ecef;
+        }
+
+        .form-input,
+        .form-select {
+          background: #343a40;
+          border-color: #495057;
+          color: #e9ecef;
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+          border-color: #667eea;
+          box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+        }
+
         .vehicles-table-container {
           background: #2c3e50;
         }
@@ -441,6 +891,24 @@ export class VehiclesPage extends LitElement {
           padding: 1rem;
         }
 
+        .form-row {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .form-group {
+          min-width: auto;
+        }
+
+        .form-group:last-child {
+          flex: 1;
+        }
+
+        .generate-btn {
+          width: 100%;
+          margin-top: 0.5rem;
+        }
+
         .vehicles-table {
           font-size: 0.9rem;
         }
@@ -448,6 +916,11 @@ export class VehiclesPage extends LitElement {
         .vehicles-table th,
         .vehicles-table td {
           padding: 0.75rem 0.5rem;
+        }
+
+        .checkbox-column {
+          width: 40px;
+          padding: 0.25rem !important;
         }
       }
     `

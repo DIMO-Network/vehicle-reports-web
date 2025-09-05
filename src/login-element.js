@@ -8,7 +8,9 @@ export class LoginElement extends LitElement {
   static get properties() {
     return {
       isLoading: { type: Boolean },
-      error: { type: String }
+      error: { type: String },
+      isConfigured: { type: Boolean },
+      showClearConfirm: { type: Boolean }
     }
   }
 
@@ -16,12 +18,25 @@ export class LoginElement extends LitElement {
     super()
     this.isLoading = false
     this.error = ''
+    this.isConfigured = false
+    this.showClearConfirm = false
   }
 
   connectedCallback() {
     super.connectedCallback()
+    this.checkConfigurationStatus()
     this.checkForExistingSession()
     this.checkForOAuthCallback()
+  }
+
+  checkConfigurationStatus() {
+    this.isConfigured = storageService.isAppConfigured()
+    
+    // If app is not configured, redirect to configuration page
+    if (!this.isConfigured) {
+      console.log('App not configured, redirecting to configuration page')
+      window.location.href = '/'
+    }
   }
 
   checkForExistingSession() {
@@ -189,6 +204,47 @@ export class LoginElement extends LitElement {
     }
   }
 
+  showClearConfiguration() {
+    this.showClearConfirm = true
+    this.requestUpdate()
+  }
+
+  cancelClearConfiguration() {
+    this.showClearConfirm = false
+    this.requestUpdate()
+  }
+
+  clearConfiguration() {
+    try {
+      // Clear app configuration
+      storageService.clearAppConfig()
+      
+      // Update configuration status
+      this.isConfigured = false
+      this.showClearConfirm = false
+      
+      // Clear any error messages
+      this.error = ''
+      
+      console.log('App configuration cleared successfully')
+      
+      // Dispatch configuration cleared event
+      this.dispatchEvent(new CustomEvent('config-cleared', {
+        detail: { message: 'App configuration has been cleared' },
+        bubbles: true
+      }))
+      
+      // Redirect to configuration page
+      setTimeout(() => {
+        window.location.href = '/'
+      }, 1000) // Small delay to show the cleared message
+      
+    } catch (error) {
+      console.error('Failed to clear configuration:', error)
+      this.error = 'Failed to clear configuration. Please try again.'
+    }
+  }
+
   render() {
     if (this.isLoading) {
       return html`
@@ -203,6 +259,20 @@ export class LoginElement extends LitElement {
       `
     }
 
+    // If app is not configured, show redirecting message
+    if (!this.isConfigured) {
+      return html`
+        <div class="login-container">
+          <div class="login-card">
+            <div class="loading">
+              <div class="spinner"></div>
+              <p>Redirecting to configuration...</p>
+            </div>
+          </div>
+        </div>
+      `
+    }
+
     return html`
       <div class="login-container">
         <div class="login-card">
@@ -211,17 +281,63 @@ export class LoginElement extends LitElement {
           
           ${this.error ? html`<div class="error">${this.error}</div>` : ''}
           
+          <!-- Configuration Status -->
+          <div class="config-status">
+            <div class="status-indicator ${this.isConfigured ? 'configured' : 'not-configured'}">
+              <svg class="status-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                ${this.isConfigured ? html`
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="currentColor"/>
+                ` : html`
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/>
+                `}
+              </svg>
+              <span class="status-text">
+                ${this.isConfigured ? 'App is configured' : 'App not configured'}
+              </span>
+            </div>
+          </div>
+          
           <div class="login-options">
-            <button @click=${this.initiateLogin} class="login-btn">
+            <button @click=${this.initiateLogin} class="login-btn" ?disabled=${!this.isConfigured}>
               <svg class="login-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V21C3 22.11 3.89 23 5 23H19C20.11 23 21 22.11 21 21V9M19 9H14V4H5V21H19V9Z" fill="currentColor"/>
               </svg>
-              Sign in with DIMO
+              ${this.isConfigured ? 'Sign in with DIMO' : 'Configure App First'}
             </button>
           </div>
           
+          <!-- Clear Configuration Section -->
+          ${this.isConfigured ? html`
+            <div class="config-actions">
+              <button @click=${this.showClearConfiguration} class="clear-btn">
+                <svg class="clear-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
+                </svg>
+                Clear Configuration
+              </button>
+            </div>
+          ` : ''}
+          
+          <!-- Clear Confirmation Dialog -->
+          ${this.showClearConfirm ? html`
+            <div class="clear-confirm">
+              <div class="confirm-content">
+                <h3>Clear Configuration?</h3>
+                <p>This will remove your DIMO API credentials. You'll need to reconfigure the app to use it again.</p>
+                <div class="confirm-buttons">
+                  <button @click=${this.clearConfiguration} class="confirm-btn confirm-yes">
+                    Yes, Clear
+                  </button>
+                  <button @click=${this.cancelClearConfiguration} class="confirm-btn confirm-no">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+          
           <div class="help-text">
-            <p>You'll be redirected to DIMO's secure login page</p>
+            <p>${this.isConfigured ? 'You\'ll be redirected to DIMO\'s secure login page' : 'Please configure the app with your DIMO credentials first'}</p>
           </div>
         </div>
       </div>
@@ -283,14 +399,148 @@ export class LoginElement extends LitElement {
         transition: transform 0.2s, box-shadow 0.2s;
       }
 
-      .login-btn:hover {
+      .login-btn:hover:not(:disabled) {
         transform: translateY(-2px);
         box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+      }
+
+      .login-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
       }
 
       .login-icon {
         width: 20px;
         height: 20px;
+      }
+
+      .config-status {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+      }
+
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        font-weight: 500;
+      }
+
+      .status-indicator.configured {
+        color: #28a745;
+      }
+
+      .status-indicator.not-configured {
+        color: #dc3545;
+      }
+
+      .status-icon {
+        width: 16px;
+        height: 16px;
+      }
+
+      .config-actions {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e9ecef;
+      }
+
+      .clear-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: background-color 0.2s;
+        margin: 0 auto;
+      }
+
+      .clear-btn:hover {
+        background: #c82333;
+      }
+
+      .clear-icon {
+        width: 16px;
+        height: 16px;
+      }
+
+      .clear-confirm {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+
+      .confirm-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        max-width: 400px;
+        width: 90%;
+        text-align: center;
+      }
+
+      .confirm-content h3 {
+        margin: 0 0 1rem 0;
+        color: #2c3e50;
+        font-size: 1.25rem;
+      }
+
+      .confirm-content p {
+        margin: 0 0 1.5rem 0;
+        color: #6c757d;
+        line-height: 1.5;
+      }
+
+      .confirm-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+      }
+
+      .confirm-btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      .confirm-yes {
+        background: #dc3545;
+        color: white;
+      }
+
+      .confirm-yes:hover {
+        background: #c82333;
+      }
+
+      .confirm-no {
+        background: #6c757d;
+        color: white;
+      }
+
+      .confirm-no:hover {
+        background: #5a6268;
       }
 
       .error {
@@ -344,6 +594,36 @@ export class LoginElement extends LitElement {
         }
 
         .subtitle {
+          color: #adb5bd;
+        }
+
+        .config-status {
+          background: #343a40;
+          border-color: #495057;
+        }
+
+        .status-indicator.configured {
+          color: #28a745;
+        }
+
+        .status-indicator.not-configured {
+          color: #dc3545;
+        }
+
+        .config-actions {
+          border-top-color: #495057;
+        }
+
+        .confirm-content {
+          background: #2c3e50;
+          color: #e9ecef;
+        }
+
+        .confirm-content h3 {
+          color: #e9ecef;
+        }
+
+        .confirm-content p {
           color: #adb5bd;
         }
 
