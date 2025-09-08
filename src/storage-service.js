@@ -8,8 +8,6 @@ export class StorageService {
 
   // Storage keys
   static KEYS = {
-    DIMO_CLIENT_ID: 'dimo_client_id',
-    DIMO_API_KEY: 'dimo_api_key',
     DIMO_JWT: 'dimo_jwt',
     DIMO_JWT_TIMESTAMP: 'dimo_jwt_timestamp',
     USER_JWT: 'user_jwt',
@@ -59,35 +57,8 @@ export class StorageService {
     this.removeItem(StorageService.KEYS.OAUTH_STATE)
   }
 
-  /**
-   * Clear app configuration data (keep user session)
-   */
-  clearAppConfig() {
-    this.removeItem(StorageService.KEYS.DIMO_CLIENT_ID)
-    this.removeItem(StorageService.KEYS.DIMO_API_KEY)
-    this.removeItem(StorageService.KEYS.DIMO_JWT)
-    this.removeItem(StorageService.KEYS.DIMO_JWT_TIMESTAMP)
-  }
 
-  /**
-   * Get app configuration
-   */
-  getAppConfig() {
-    return {
-      clientId: this.getClientId(),
-      apiKey: this.getApiKey(),
-      redirectUri: this.getItem('dimo_redirect_uri') || 'https://localhost:5173/login'
-    }
-  }
 
-  /**
-   * Check if app is configured
-   */
-  isAppConfigured() {
-    const clientId = this.getItem(StorageService.KEYS.DIMO_CLIENT_ID)
-    const apiKey = this.getItem(StorageService.KEYS.DIMO_API_KEY)
-    return !!(clientId && apiKey)
-  }
 
   /**
    * Check if user is authenticated
@@ -117,19 +88,6 @@ export class StorageService {
     }
   }
 
-  /**
-   * Get DIMO client ID
-   */
-  getClientId() {
-    return this.getItem(StorageService.KEYS.DIMO_CLIENT_ID)
-  }
-
-  /**
-   * Get DIMO API key
-   */
-  getApiKey() {
-    return this.getItem(StorageService.KEYS.DIMO_API_KEY)
-  }
 
   /**
    * Get user JWT
@@ -152,13 +110,6 @@ export class StorageService {
     return this.getItem('user_email')
   }
 
-  /**
-   * Set app configuration
-   */
-  setAppConfig(clientId, apiKey) {
-    this.setItem(StorageService.KEYS.DIMO_CLIENT_ID, clientId)
-    this.setItem(StorageService.KEYS.DIMO_API_KEY, apiKey)
-  }
 
   /**
    * Set user session
@@ -237,9 +188,7 @@ export class StorageService {
    */
   getAppState() {
     return {
-      isConfigured: this.isAppConfigured(),
       isAuthenticated: this.isUserAuthenticated(),
-      clientId: this.getClientId(),
       userJwt: this.getUserJwt()
     }
   }

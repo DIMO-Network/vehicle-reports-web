@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite'
 import mkcert from 'vite-plugin-mkcert'
+import path from "node:path";
+import { resolve } from 'path';
 
 export default defineConfig({
   server: {
@@ -21,7 +23,11 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1000
   },
-  plugins: [mkcert()],
+  plugins: [mkcert({
+    keyPath: 'key.pem',
+    certFileName: 'cert.pem',
+    savePath: path.resolve(process.cwd(), '.mkcert')
+})],
   define: {
     global: 'globalThis',
   }

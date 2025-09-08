@@ -1,5 +1,6 @@
 import { LitElement, css, html } from 'lit'
-import { storageService } from './storage-service.js'
+import { dimoApiService } from './dimo-api-service.js'
+import { ConfigUtils } from './config-utils.js'
 
 /**
  * App Configuration component for DIMO credentials
@@ -24,7 +25,41 @@ export class AppConfigurationComponent extends LitElement {
     this.success = ''
   }
 
+  connectedCallback() {
+    super.connectedCallback()
+    this.checkExistingConfiguration()
+  }
+
+  async checkExistingConfiguration() {
+    this.isLoading = true
+    
+    const { isConfigured, config, error } = await ConfigUtils.checkAppConfiguration()
+    
+    if (isConfigured) {
+      console.log('App is already configured, redirecting to login...')
+      // window.location.href = '/login' // todo: uncomment this
+      return
+    }
+    
+    // App is not configured, show the configuration form
+    this.isLoading = false
+  }
+
   render() {
+    // Show loading state while checking configuration
+    if (this.isLoading) {
+      return html`
+        <div class="login-container">
+          <div class="login-card">
+            <div class="loading">
+              <div class="spinner"></div>
+              <p>Checking configuration...</p>
+            </div>
+          </div>
+        </div>
+      `
+    }
+
     return html`
       <div class="login-container">
         <div class="login-card">
@@ -89,12 +124,14 @@ export class AppConfigurationComponent extends LitElement {
     this.error = ''
 
     try {
-      // Store credentials using storage service
-      storageService.setAppConfig(this.clientId, this.apiKey)
+      // Store credentials using backend API
+      const result = await dimoApiService.saveConfig({
+        clientId: this.clientId,
+        apiKey: this.apiKey,
+        redirectUri: window.location.origin + '/login'
+      })
 
-      console.log('App configuration saved successfully')
-      console.log('Client ID:', this.clientId)
-      console.log('API Key:', this.apiKey)
+      console.log('App configuration saved successfully:', result)
 
       // Dispatch configuration success event
       this.dispatchEvent(new CustomEvent('config-success', {
@@ -307,6 +344,27 @@ export class AppConfigurationComponent extends LitElement {
         .help-text p {
           color: #adb5bd;
         }
+      }
+
+      .loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(102, 126, 234, 0.3);
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
     `
   }

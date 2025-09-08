@@ -1,5 +1,7 @@
 import { LitElement, css, html } from 'lit'
 import { storageService } from './storage-service.js'
+import { DimoApiService } from './dimo-api-service.js'
+import { ConfigUtils } from './config-utils.js'
 
 /**
  * OAuth Login component for DIMO user authentication
@@ -20,22 +22,31 @@ export class LoginElement extends LitElement {
     this.error = ''
     this.isConfigured = false
     this.showClearConfirm = false
+    this.dimoApiService = new DimoApiService()
   }
 
-  connectedCallback() {
+  async connectedCallback() {
     super.connectedCallback()
-    this.checkConfigurationStatus()
+    await this.checkConfigurationStatus()
     this.checkForExistingSession()
     this.checkForOAuthCallback()
   }
 
-  checkConfigurationStatus() {
-    this.isConfigured = storageService.isAppConfigured()
+  async checkConfigurationStatus() {
+    const { isConfigured, config, error } = await ConfigUtils.checkAppConfiguration()
+    
+    this.isConfigured = isConfigured
     
     // If app is not configured, redirect to configuration page
-    if (!this.isConfigured) {
+    if (!isConfigured) {
       console.log('App not configured, redirecting to configuration page')
-      window.location.href = '/'
+      // window.location.href = '/config' // todo: uncomment this
+      return
+    }
+    
+    // Store the config for later use if available
+    if (config) {
+      this.appConfig = config
     }
   }
 
@@ -91,11 +102,17 @@ export class LoginElement extends LitElement {
     this.error = ''
 
     try {
-      // Get the client ID from storage service
-      const clientId = storageService.getClientId()
-      if (!clientId) {
+      // Get the client ID from stored config or fetch if not available
+      let config = this.appConfig
+      if (!config) {
+        const { config: fetchedConfig } = await ConfigUtils.checkAppConfiguration()
+        config = fetchedConfig
+      }
+      
+      if (!config || !config.clientId) {
         throw new Error('No client ID found. Please configure the app first.')
       }
+      const clientId = config.clientId
 
       // Validate the JWT token (basic validation)
       if (!this.isValidJWT(token)) {
@@ -176,11 +193,17 @@ export class LoginElement extends LitElement {
     this.error = ''
 
     try {
-      // Get the client ID from storage service
-      const clientId = storageService.getClientId()
-      if (!clientId) {
+      // Get the client ID from stored config or fetch if not available
+      let config = this.appConfig
+      if (!config) {
+        const { config: fetchedConfig } = await ConfigUtils.checkAppConfiguration()
+        config = fetchedConfig
+      }
+      
+      if (!config || !config.clientId) {
         throw new Error('No client ID found. Please configure the app first.')
       }
+      const clientId = config.clientId
 
       // Generate state parameter for security
       const state = Math.random().toString(36).substring(2, 15)
@@ -214,10 +237,10 @@ export class LoginElement extends LitElement {
     this.requestUpdate()
   }
 
-  clearConfiguration() {
+  async clearConfiguration() {
     try {
-      // Clear app configuration
-      storageService.clearAppConfig()
+      // Clear app configuration from backend
+      await this.dimoApiService.deleteConfig()
       
       // Update configuration status
       this.isConfigured = false
@@ -236,7 +259,7 @@ export class LoginElement extends LitElement {
       
       // Redirect to configuration page
       setTimeout(() => {
-        window.location.href = '/'
+        // window.location.href = '/' // todo: uncomment this
       }, 1000) // Small delay to show the cleared message
       
     } catch (error) {

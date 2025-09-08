@@ -220,8 +220,8 @@ export class VehiclesPage extends LitElement {
   }
 
   async getDimoConfig() {
-    // Get DIMO credentials from storage service
-    const config = storageService.getAppConfig()
+    // Get DIMO credentials from backend
+    const config = await dimoApiService.getConfig()
     
     if (!config || !config.clientId || !config.apiKey) {
       throw new Error('DIMO credentials not configured. Please configure your app first.')
@@ -229,7 +229,7 @@ export class VehiclesPage extends LitElement {
     
     return {
       clientId: config.clientId,
-      redirectUri: config.redirectUri || 'http://localhost:3000', // Default redirect URI
+      redirectUri: config.redirectUri || window.location.origin + '/login',
       apiKey: config.apiKey
     }
   }
@@ -311,8 +311,28 @@ export class VehiclesPage extends LitElement {
       })
       console.log('==================')
       
-      // TODO: Implement actual CSV generation logic here using the JWTs
-      alert(`Report generation initiated for ${selectedVehiclesList.length} vehicles from ${this.startDate} to ${this.endDate}. Check console for JWT details.`)
+      // Generate report using backend
+      console.log('Generating report via backend...')
+      const reportResult = await dimoApiService.generateReport({
+        vehicleTokenIds: Array.from(this.selectedVehicles),
+        startDate: this.startDate,
+        endDate: this.endDate
+      })
+      
+      console.log('Report generated:', reportResult)
+      
+      // Download the report
+      const blob = await dimoApiService.downloadReport(reportResult.filename)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = reportResult.filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      alert(`Report generated successfully! Downloaded ${reportResult.filename} with ${reportResult.recordCount} records.`)
       
     } catch (error) {
       console.error('Report generation failed:', error)

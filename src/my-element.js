@@ -3,6 +3,7 @@ import 'urlpattern-polyfill'
 import { LitElement, css, html } from 'lit'
 import { Router } from '@lit-labs/router'
 import { storageService } from './storage-service.js'
+import { ConfigUtils } from './config-utils.js'
 
 /**
  * Odometer Reporting Tool main component
@@ -13,7 +14,8 @@ export class MyElement extends LitElement {
       isConfigured: { type: Boolean },
       isAuthenticated: { type: Boolean },
       isLoading: { type: Boolean },
-      authStatus: { type: Object }
+      authStatus: { type: Object },
+      clientId: { type: String }
     }
   }
 
@@ -23,6 +25,7 @@ export class MyElement extends LitElement {
     this.isAuthenticated = false
     this.isLoading = true
     this.authStatus = {}
+    this.clientId = ''
     
     // Initialize the router
     this.router = new Router(this, [
@@ -51,6 +54,9 @@ export class MyElement extends LitElement {
     // Add router as a controller
     this.addController(this.router)
     
+    // Load client ID from backend config
+    this.loadClientId()
+    
     // Listen for configuration success events
     this.addEventListener('config-success', this._handleConfigSuccess)
     // Listen for login success events
@@ -65,6 +71,17 @@ export class MyElement extends LitElement {
     }, 0)
   }
 
+  async loadClientId() {
+    try {
+      const { config } = await ConfigUtils.checkAppConfiguration()
+      if (config && config.clientId) {
+        this.clientId = config.clientId
+      }
+    } catch (error) {
+      console.error('Failed to load client ID:', error)
+    }
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback()
     this.removeEventListener('config-success', this._handleConfigSuccess)
@@ -73,15 +90,18 @@ export class MyElement extends LitElement {
 
   updateAppState() {
     const state = storageService.getAppState()
-    this.isConfigured = state.isConfigured
     this.isAuthenticated = state.isAuthenticated
     this.authStatus = state
     this.isLoading = false
   }
 
-  navigateToCurrentRoute() {
+  async navigateToCurrentRoute() {
     let targetRoute = '/'
-    if (!this.isConfigured) {
+    
+    // Check configuration status from backend
+    const { isConfigured } = await ConfigUtils.checkAppConfiguration()
+    
+    if (!isConfigured) {
       targetRoute = '/config'
     } else if (!this.isAuthenticated) {
       targetRoute = '/login'
@@ -142,7 +162,7 @@ export class MyElement extends LitElement {
         <header class="app-header">
           <h1>Odometer Reporting Tool</h1>
           <div class="user-info">
-            <span class="client-id">Client: ${storageService.getClientId()?.slice(0, 10)}...</span>
+            <span class="client-id">Client: ${this.clientId?.slice(0, 10)}...</span>
             <button @click=${this._handleLogout} class="logout-btn">Logout</button>
           </div>
         </header>

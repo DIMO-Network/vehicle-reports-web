@@ -1,11 +1,14 @@
 /**
- * DIMO API Service - Direct API calls without SDK dependencies
- * Implements the core functionality we need for JWT token management
+ * DIMO API Service - Backend API calls
+ * Calls our Express.js backend which handles DIMO SDK integration
  */
+
+import { ApiConfig } from './api-config.js'
 
 export class DimoApiService {
   constructor() {
-    this.baseUrl = 'https://api.dimo.org'
+    this.baseUrl = ApiConfig.getBaseUrl()
+    console.log('DimoApiService initialized with baseUrl:', this.baseUrl)
   }
 
   /**
@@ -18,21 +21,17 @@ export class DimoApiService {
    */
   async getDeveloperJwt(credentials) {
     try {
-      const response = await fetch(`${this.baseUrl}/auth/token`, {
+      const response = await fetch(`${this.baseUrl}/auth/developer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          client_id: credentials.clientId,
-          domain: credentials.domain,
-          private_key: credentials.privateKey,
-        }),
+        body: JSON.stringify(credentials),
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`)
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
 
       const data = await response.json()
@@ -56,20 +55,20 @@ export class DimoApiService {
    */
   async getVehicleJwt(params) {
     try {
-      const response = await fetch(`${this.baseUrl}/token-exchange/vehicle-jwt`, {
+      const response = await fetch(`${this.baseUrl}/auth/vehicle`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${params.access_token}`,
         },
         body: JSON.stringify({
           tokenId: params.tokenId,
+          developerJwt: params.access_token,
         }),
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`)
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
 
       const data = await response.json()
@@ -152,6 +151,129 @@ export class DimoApiService {
     } catch (error) {
       console.error('Error getting JWT expiration:', error)
       return null
+    }
+  }
+
+  /**
+   * Get app configuration
+   * @returns {Promise<Object>} Configuration object
+   */
+  async getConfig() {
+    try {
+      const response = await fetch(`${this.baseUrl}/config`)
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null // No configuration found
+        }
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to get configuration:', error)
+      throw new Error(`Failed to get configuration: ${error.message}`)
+    }
+  }
+
+  /**
+   * Save app configuration
+   * @param {Object} config - Configuration object
+   * @returns {Promise<Object>} Saved configuration
+   */
+  async saveConfig(config) {
+    try {
+      const response = await fetch(`${this.baseUrl}/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to save configuration:', error)
+      throw new Error(`Failed to save configuration: ${error.message}`)
+    }
+  }
+
+  /**
+   * Delete app configuration
+   * @returns {Promise<Object>} Deletion result
+   */
+  async deleteConfig() {
+    try {
+      const response = await fetch(`${this.baseUrl}/config`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to delete configuration:', error)
+      throw new Error(`Failed to delete configuration: ${error.message}`)
+    }
+  }
+
+  /**
+   * Generate vehicle report
+   * @param {Object} params - Report parameters
+   * @param {Array} params.vehicleTokenIds - Array of vehicle token IDs
+   * @param {string} params.startDate - Start date (YYYY-MM-DD)
+   * @param {string} params.endDate - End date (YYYY-MM-DD)
+   * @returns {Promise<Object>} Report generation result
+   */
+  async generateReport(params) {
+    try {
+      const response = await fetch(`${this.baseUrl}/reports/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to generate report:', error)
+      throw new Error(`Failed to generate report: ${error.message}`)
+    }
+  }
+
+  /**
+   * Download report file
+   * @param {string} filename - Report filename
+   * @returns {Promise<Blob>} Report file blob
+   */
+  async downloadReport(filename) {
+    try {
+      const response = await fetch(`${this.baseUrl}/reports/download/${filename}`)
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      return await response.blob()
+    } catch (error) {
+      console.error('Failed to download report:', error)
+      throw new Error(`Failed to download report: ${error.message}`)
     }
   }
 }
