@@ -20,8 +20,6 @@ export class VehiclesPage extends LitElement {
       startDate: { type: String },
       endDate: { type: String },
       selectedMonth: { type: String },
-      developerJwt: { type: String },
-      vehicleJwts: { type: Object },
       isGeneratingReport: { type: Boolean }
     }
   }
@@ -39,8 +37,6 @@ export class VehiclesPage extends LitElement {
     this.startDate = ''
     this.endDate = ''
     this.selectedMonth = ''
-    this.developerJwt = null
-    this.vehicleJwts = {}
     this.isGeneratingReport = false
     
     // DIMO API service is imported and ready to use
@@ -169,70 +165,9 @@ export class VehiclesPage extends LitElement {
     this.requestUpdate()
   }
 
-  async getDeveloperJwt() {
-    // Check if we already have a valid developer JWT
-    if (this.developerJwt && this.isJwtValid(this.developerJwt)) {
-      return this.developerJwt
-    }
 
-    try {
-      // Get DIMO credentials from app configuration
-      const config = await this.getDimoConfig()
-      
-      const developerJwt = await dimoApiService.getDeveloperJwt({
-        clientId: config.clientId,
-        domain: config.redirectUri,
-        privateKey: config.apiKey,
-      })
 
-      this.developerJwt = developerJwt.access_token
-      return this.developerJwt
-    } catch (error) {
-      console.error('Failed to get Developer JWT:', error)
-      throw new Error('Failed to authenticate with DIMO. Please check your credentials.')
-    }
-  }
 
-  async getVehicleJwt(tokenId) {
-    // Check if we already have a valid vehicle JWT for this token
-    if (this.vehicleJwts[tokenId] && this.isJwtValid(this.vehicleJwts[tokenId])) {
-      return this.vehicleJwts[tokenId]
-    }
-
-    try {
-      const developerJwt = await this.getDeveloperJwt()
-      
-      const vehicleJwt = await dimoApiService.getVehicleJwt({
-        access_token: developerJwt,
-        tokenId: tokenId
-      })
-
-      this.vehicleJwts[tokenId] = vehicleJwt.token
-      return this.vehicleJwts[tokenId]
-    } catch (error) {
-      console.error(`Failed to get Vehicle JWT for token ${tokenId}:`, error)
-      throw new Error(`Failed to get vehicle access for token ${tokenId}`)
-    }
-  }
-
-  isJwtValid(jwt) {
-    return dimoApiService.isJwtValid(jwt)
-  }
-
-  async getDimoConfig() {
-    // Get DIMO credentials from backend
-    const config = await dimoApiService.getConfig()
-    
-    if (!config || !config.clientId || !config.apiKey) {
-      throw new Error('DIMO credentials not configured. Please configure your app first.')
-    }
-    
-    return {
-      clientId: config.clientId,
-      redirectUri: config.redirectUri || window.location.origin + '/login',
-      apiKey: config.apiKey
-    }
-  }
 
   async generateReport() {
     // Validate required fields
@@ -263,55 +198,13 @@ export class VehiclesPage extends LitElement {
     this.requestUpdate()
     
     try {
-      const selectedVehiclesList = Array.from(this.selectedVehicles).map(tokenId => 
-        this.vehicles.find(v => v.tokenId === tokenId)
-      ).filter(Boolean)
-      
       console.log('=== Vehicle Report Generation ===')
       console.log('Start Date:', this.startDate)
       console.log('End Date:', this.endDate)
-      console.log('Selected Vehicles:', selectedVehiclesList)
-      console.log('Total Selected:', selectedVehiclesList.length)
+      console.log('Selected Vehicles:', Array.from(this.selectedVehicles))
+      console.log('Total Selected:', this.selectedVehicles.size)
       
-      // Get Developer JWT (reuse if valid)
-      console.log('Getting Developer JWT...')
-      const developerJwt = await this.getDeveloperJwt()
-      console.log('Developer JWT obtained successfully')
-      
-      // Get Vehicle JWTs for each selected vehicle
-      const vehicleJwtPromises = selectedVehiclesList.map(async (vehicle) => {
-        try {
-          console.log(`Getting Vehicle JWT for token ${vehicle.tokenId}...`)
-          const vehicleJwt = await this.getVehicleJwt(vehicle.tokenId)
-          console.log(`Vehicle JWT obtained for token ${vehicle.tokenId}`)
-          return {
-            vehicle,
-            jwt: vehicleJwt
-          }
-        } catch (error) {
-          console.error(`Failed to get JWT for vehicle ${vehicle.tokenId}:`, error)
-          return {
-            vehicle,
-            jwt: null,
-            error: error.message
-          }
-        }
-      })
-      
-      const vehicleJwtResults = await Promise.all(vehicleJwtPromises)
-      
-      // Log results
-      console.log('=== JWT Results ===')
-      vehicleJwtResults.forEach(result => {
-        if (result.jwt) {
-          console.log(`✅ Token ${result.vehicle.tokenId}: JWT obtained`)
-        } else {
-          console.log(`❌ Token ${result.vehicle.tokenId}: ${result.error}`)
-        }
-      })
-      console.log('==================')
-      
-      // Generate report using backend
+      // Generate report using backend (backend handles all JWT logic)
       console.log('Generating report via backend...')
       const reportResult = await dimoApiService.generateReport({
         vehicleTokenIds: Array.from(this.selectedVehicles),

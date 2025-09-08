@@ -265,7 +265,7 @@ app.post('/api/reports/generate', async (req, res) => {
     }
 
     // Get developer JWT
-    const developerJwt = await dimo.auth.getToken({
+    const developerJwt = await dimo.auth.getDeveloperJwt({
       client_id: config.clientId,
       domain: config.redirectUri,
       private_key: config.apiKey,
@@ -279,8 +279,9 @@ app.post('/api/reports/generate', async (req, res) => {
     for (const tokenId of vehicleTokenIds) {
       try {
         // Get vehicle JWT
-        const vehicleJwt = await dimo.tokenexchange.getVehicleJwt({
+        const vehicleJwt = await dimo.tokenexchange.exchange({
           ...developerJwt,
+          privileges: [1],
           tokenId: tokenId
         })
 

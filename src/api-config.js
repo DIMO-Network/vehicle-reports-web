@@ -16,7 +16,7 @@ export class ApiConfig {
     const currentUrl = window.location
     
     // Check if we're in development mode (separate frontend/backend ports)
-    const isDevelopment = currentUrl.port === '5173' || currentUrl.port === '5174' || currentUrl.port === '3000'
+    const isDevelopment = currentUrl.port === '5173' || currentUrl.port === '3000'
     
     if (isDevelopment) {
       // Local development: use separate backend port
@@ -30,7 +30,7 @@ export class ApiConfig {
   static getConfig() {
     return {
       baseUrl: this.getBaseUrl(),
-      isDevelopment: window.location.port === '5173' || window.location.port === '5174' || window.location.port === '3000'
+      isDevelopment: window.location.port === '5173' || window.location.port === '3000'
     }
   }
 }
