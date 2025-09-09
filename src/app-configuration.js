@@ -37,7 +37,7 @@ export class AppConfigurationComponent extends LitElement {
     
     if (isConfigured) {
       console.log('App is already configured, redirecting to login...')
-      // window.location.href = '/login' // todo: uncomment this
+      window.location.href = '/login'
       return
     }
     

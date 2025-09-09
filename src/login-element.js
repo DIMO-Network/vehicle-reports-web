@@ -40,7 +40,7 @@ export class LoginElement extends LitElement {
     // If app is not configured, redirect to configuration page
     if (!isConfigured) {
       console.log('App not configured, redirecting to configuration page')
-      // window.location.href = '/config' // todo: uncomment this
+       window.location.href = '/config'
       return
     }
     
@@ -259,7 +259,7 @@ export class LoginElement extends LitElement {
       
       // Redirect to configuration page
       setTimeout(() => {
-        // window.location.href = '/' // todo: uncomment this
+        window.location.href = '/'
       }, 1000) // Small delay to show the cleared message
       
     } catch (error) {
