@@ -169,7 +169,7 @@ app.post('/api/auth/vehicle', async (req, res) => {
 
     const vehicleJwt = await dimo.tokenexchange.getVehicleJwt({
       ...developerJwt,
-      tokenId: tokenId
+      tokenId: parseInt(tokenId)
     })
 
     res.json(vehicleJwt)
@@ -282,34 +282,21 @@ app.post('/api/reports/generate', async (req, res) => {
         const vehicleJwt = await dimo.tokenexchange.exchange({
           ...developerJwt,
           privileges: [1],
-          tokenId: tokenId
+          tokenId: parseInt(tokenId)
         })
 
         // Query vehicle telemetry data
         const telemetryQuery = `
-          query GetVehicleTelemetry($tokenId: String!, $startDate: String!, $endDate: String!) {
-            signalsLatest(tokenId: $tokenId) {
-              powertrainTransmissionTravelledDistance {
-                timestamp
-                value
-              }
-              powertrainType {
-                timestamp
-                value
-              }
-              lastSeen
+          {
+            signals(tokenId: ${tokenId}, interval: "24h", from: "${startDate}T00:00:00Z", to: "${endDate}T23:59:59Z") {
+              powertrainTransmissionTravelledDistance (agg: MAX)
             }
           }
         `
 
         const telemetryResult = await dimo.telemetry.query({
           ...vehicleJwt,
-          query: telemetryQuery,
-          variables: {
-            tokenId: tokenId,
-            startDate: startDate,
-            endDate: endDate
-          }
+          query: telemetryQuery
         })
 
         // Add to report data
