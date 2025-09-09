@@ -290,6 +290,7 @@ app.post('/api/reports/generate', async (req, res) => {
           {
             signals(tokenId: ${tokenId}, interval: "24h", from: "${startDate}T00:00:00Z", to: "${endDate}T23:59:59Z") {
               powertrainTransmissionTravelledDistance (agg: MAX)
+              timestamp
             }
           }
         `
@@ -299,29 +300,45 @@ app.post('/api/reports/generate', async (req, res) => {
           query: telemetryQuery
         })
 
-        // Add to report data
-        reportData.push({
-          tokenId: tokenId,
-          startDate: startDate,
-          endDate: endDate,
-          lastSeen: telemetryResult.data.signalsLatest?.lastSeen || 'N/A',
-          odometerReading: telemetryResult.data.signalsLatest?.powertrainTransmissionTravelledDistance?.value || 'N/A',
-          powertrainType: telemetryResult.data.signalsLatest?.powertrainType?.value || 'N/A',
-          generatedAt: new Date().toISOString()
-        })
+        console.log(telemetryResult.data.signals)
+
+        // Add to report data - create a record for each signal
+        if (telemetryResult.data.signals && Array.isArray(telemetryResult.data.signals)) {
+          telemetryResult.data.signals.forEach((signal, index) => {
+            const odometerReading = signal.powertrainTransmissionTravelledDistance || 0
+            let travelledDistance = 0
+            
+            // Calculate travelled distance as difference from previous reading
+            if (index > 0) {
+              const previousReading = telemetryResult.data.signals[index - 1].powertrainTransmissionTravelledDistance || 0
+              travelledDistance = odometerReading - previousReading
+            }
+            
+            reportData.push({
+              tokenId: tokenId,
+              timestamp: signal.timestamp || 'N/A',
+              odometerReading: odometerReading,
+              travelledDistance: travelledDistance
+            })
+          })
+        } else {
+          // Fallback if no signals data
+          reportData.push({
+            tokenId: tokenId,
+            timestamp: 'N/A',
+            odometerReading: 'N/A',
+            travelledDistance: 0
+          })
+        }
 
       } catch (error) {
         console.error(`Failed to get data for vehicle ${tokenId}:`, error)
         // Add error entry to report
         reportData.push({
           tokenId: tokenId,
-          startDate: startDate,
-          endDate: endDate,
-          lastSeen: 'ERROR',
+          timestamp: 'ERROR',
           odometerReading: 'ERROR',
-          powertrainType: 'ERROR',
-          generatedAt: new Date().toISOString(),
-          error: error.message
+          travelledDistance: 0
         })
       }
     }
@@ -331,13 +348,9 @@ app.post('/api/reports/generate', async (req, res) => {
       path: path.join(tmpDir, filename),
       header: [
         { id: 'tokenId', title: 'Token ID' },
-        { id: 'startDate', title: 'Start Date' },
-        { id: 'endDate', title: 'End Date' },
-        { id: 'lastSeen', title: 'Last Seen' },
+        { id: 'timestamp', title: 'Timestamp' },
         { id: 'odometerReading', title: 'Odometer Reading' },
-        { id: 'powertrainType', title: 'Powertrain Type' },
-        { id: 'generatedAt', title: 'Generated At' },
-        { id: 'error', title: 'Error' }
+        { id: 'travelledDistance', title: 'Travelled Distance' }
       ]
     })
 
