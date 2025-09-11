@@ -142,3 +142,5 @@ vite.config.ts.timestamp-*
 .mkcert/
 
 backend/tmp/
+
+vehicle-reports-windows.zip
