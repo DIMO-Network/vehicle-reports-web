@@ -2,6 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { graphqlService } from './graphql-service.js'
 import { storageService } from './storage-service.js'
 import { dimoApiService } from './dimo-api-service.js'
+import { ConfigUtils } from './config-utils.js'
 
 /**
  * Vehicles page component displaying user's vehicles
@@ -57,14 +58,13 @@ export class VehiclesPage extends LitElement {
     this.error = ''
 
     try {
-      // Get user JWT from storage service
-      const userJwt = storageService.getUserJwt()
-      if (!userJwt) {
-        throw new Error('No user session found. Please login again.')
+      const { config } = await ConfigUtils.checkAppConfiguration()
+      if (!config) {
+        throw new Error('No configuration found. Please configure the app.')
       }
-
+      
       // Fetch vehicles from DIMO GraphQL API
-      const vehiclesData = await graphqlService.getVehicles(userJwt, after)
+      const vehiclesData = await graphqlService.getVehicles(config.clientId, after)
       
       // Map the data to our table format
       const mappedVehicles = vehiclesData.nodes.map(vehicle => graphqlService.mapVehicleData(vehicle))

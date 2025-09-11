@@ -7,8 +7,6 @@
 export class JWTManager {
   constructor() {
     this.jwt = null
-    this.clientId = null
-    this.apiKey = null
     this.jwtTimestamp = null
     this.jwtExpirationTime = 3600000 // 1 hour in milliseconds
   }
@@ -17,13 +15,10 @@ export class JWTManager {
    * Load credentials and JWT from localStorage
    */
   loadFromStorage() {
-    this.clientId = localStorage.getItem('dimo_client_id')
-    this.apiKey = localStorage.getItem('dimo_api_key')
     this.jwt = localStorage.getItem('dimo_jwt')
     this.jwtTimestamp = localStorage.getItem('dimo_jwt_timestamp')
     
     return {
-      hasCredentials: !!(this.clientId && this.apiKey),
       hasJWT: !!this.jwt,
       isJWTValid: this.isJWTValid()
     }
@@ -71,10 +66,7 @@ export class JWTManager {
    * In a real implementation, you would make an API call to refresh the token
    */
   async refreshJWT() {
-    if (!this.clientId || !this.apiKey) {
-      throw new Error('No DIMO credentials available for refresh')
-    }
-
+  
     // For now, we'll just return the existing JWT if it exists
     // In a real implementation, you would make an API call to refresh the token
     if (this.jwt) {
@@ -89,12 +81,8 @@ export class JWTManager {
    */
   clearCredentials() {
     this.jwt = null
-    this.clientId = null
-    this.apiKey = null
     this.jwtTimestamp = null
 
-    localStorage.removeItem('dimo_client_id')
-    localStorage.removeItem('dimo_api_key')
     localStorage.removeItem('dimo_jwt')
     localStorage.removeItem('dimo_jwt_timestamp')
   }
@@ -106,9 +94,7 @@ export class JWTManager {
     this.loadFromStorage()
     
     return {
-      isAuthenticated: !!(this.clientId && this.apiKey),
       hasValidJWT: this.isJWTValid(),
-      clientId: this.clientId,
       jwt: this.jwt
     }
   }

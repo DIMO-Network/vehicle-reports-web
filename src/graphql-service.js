@@ -28,10 +28,7 @@ export class GraphQLService {
     }
   }
 
-  /**
-   * Get vehicles for the authenticated user
-   */
-  async getVehicles(userJwt, after = null) {
+  async getVehiclesByJWT(userJwt, after = null) {
     // Parse JWT to get ethereum_address
     const claims = this.parseJWT(userJwt)
     const ethereumAddress = claims.ethereum_address
@@ -39,6 +36,14 @@ export class GraphQLService {
     if (!ethereumAddress) {
       throw new Error('No ethereum_address found in JWT claims')
     }
+
+    return this.getVehicles(ethereumAddress, after)
+  }
+
+  /**
+   * Get vehicles for the authenticated user
+   */
+  async getVehicles(ethereumAddress, after = null) {
 
     // Build the after parameter for pagination
     const afterParam = after ? `, after: "${after}"` : ''
@@ -71,7 +76,6 @@ export class GraphQLService {
       const response = await fetch(this.endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${userJwt}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -84,7 +88,7 @@ export class GraphQLService {
       }
 
       const data = await response.json()
-      
+
       if (data.errors) {
         throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`)
       }
