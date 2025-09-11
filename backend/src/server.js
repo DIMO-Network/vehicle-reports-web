@@ -288,6 +288,9 @@ app.post('/api/reports/generate', async (req, res) => {
         // Query vehicle telemetry data
         const telemetryQuery = `
           {
+            vinVCLatest(tokenId: ${tokenId}) {
+              vin
+            }
             signals(tokenId: ${tokenId}, interval: "24h", from: "${startDate}T00:00:00Z", to: "${endDate}T23:59:59Z") {
               powertrainTransmissionTravelledDistance (agg: MAX)
               timestamp
@@ -301,6 +304,9 @@ app.post('/api/reports/generate', async (req, res) => {
         })
 
         console.log(telemetryResult.data.signals)
+
+        // Extract VIN from the response
+        const vin = telemetryResult.data.vinVCLatest?.vin || 'N/A'
 
         // Add to report data - create a record for each signal
         if (telemetryResult.data.signals && Array.isArray(telemetryResult.data.signals)) {
@@ -316,6 +322,7 @@ app.post('/api/reports/generate', async (req, res) => {
             
             reportData.push({
               tokenId: tokenId,
+              vin: vin,
               timestamp: signal.timestamp || 'N/A',
               odometerReading: odometerReading,
               travelledDistance: travelledDistance
@@ -325,6 +332,7 @@ app.post('/api/reports/generate', async (req, res) => {
           // Fallback if no signals data
           reportData.push({
             tokenId: tokenId,
+            vin: vin,
             timestamp: 'N/A',
             odometerReading: 'N/A',
             travelledDistance: 0
@@ -336,6 +344,7 @@ app.post('/api/reports/generate', async (req, res) => {
         // Add error entry to report
         reportData.push({
           tokenId: tokenId,
+          vin: 'ERROR',
           timestamp: 'ERROR',
           odometerReading: 'ERROR',
           travelledDistance: 0
@@ -348,6 +357,7 @@ app.post('/api/reports/generate', async (req, res) => {
       path: path.join(tmpDir, filename),
       header: [
         { id: 'tokenId', title: 'Token ID' },
+        { id: 'vin', title: 'VIN' },
         { id: 'timestamp', title: 'Timestamp' },
         { id: 'odometerReading', title: 'Odometer Reading' },
         { id: 'travelledDistance', title: 'Travelled Distance' }
